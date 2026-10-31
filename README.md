@@ -1,5 +1,7 @@
 # KILN_Camera
 
+> **Parts:** the printers, boards, readers and other gear that go with this project are listed at [projects.die-hard.net/gear](https://projects.die-hard.net/gear) (Amazon affiliate links).
+
 A [Kiln OS](https://github.com/djvalic/kiln-os) plugin for the Flashforge
 AD5X that adds zMod's camera macros and camera hotplug:
 
