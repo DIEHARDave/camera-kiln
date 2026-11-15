@@ -1,42 +1,34 @@
 #!/bin/sh
 #####################################################################
-# KILN_Camera root hook: camera settings + hotplug for Kiln OS (AD5X)
+# camera-kiln root part: camera settings + hotplug for Kiln OS (AD5X)
 #
-# install.sh copies this to /data/ad5x/camera-hook.sh (root) and adds
-#   . /data/ad5x/camera-hook.sh
-# to /data/ad5x/screen.conf, which Kiln's /etc/init.d/S65ad5x-screen
-# (root) sources at every boot. A stopgap: Kiln has no plugin boot hook,
-# and since v0.0.24 camera.conf (used up to version 1) is read as
-# settings only. When sourced, this hook:
-#   - writes the settings CAMERA_ON / CAMERA_OFF (plugin.cfg) keep in
-#     Klipper's variables.cfg into a marked block at the end of
-#     /data/ad5x/camera.conf, as the KEY=value lines Kiln reads, and
-#     restarts the cameras if the block changed. variables.cfg is
-#     writable by user klipper: it is parsed and checked, never sourced.
-#   - starts the watcher once (pid in /run, so once per boot)
-# The watcher ("camera-hook.sh watch") does the same and restarts the
-# camera service when a camera is plugged in or out, or when a camera_*
-# variable changes (CAMERA_RESTART bumps camera_restart). Kiln itself
-# scans only at boot.
-# Kiln v0.0.25's camera service checks camera.conf's owner with "stat",
-# which the image doesn't have, so it never reads the file. Until it
-# does, the hook's own camera restarts get a python3 "stat" (in /run,
-# first on PATH), and at boot, when camera.conf holds anything but the
-# defaults, the hook restarts the cameras once with it.
-# Names are prefixed (cam_): it runs inside S65ad5x-screen's start(),
-# which has its own FPS.
+# Kiln OS plugin API 1.6 runs it as root from root's copy of the
+# plugin's root/ folder (/data/ad5x/plugins-root/camera), never from the
+# clone user klipper owns:
+#   camera-hook.sh start   boot script S50camera (and install.sh):
+#                          writes the settings CAMERA_ON / CAMERA_OFF
+#                          keep in Klipper's variables.cfg into a marked
+#                          block at the end of /data/ad5x/camera.conf, as
+#                          the KEY=value lines Kiln reads, restarts the
+#                          cameras if the block changed, starts the watcher
+#   camera-hook.sh stop    stops the watcher
+#   camera-hook.sh watch   the watcher: the same, and a camera service
+#                          restart when a camera is plugged in or out or a
+#                          camera_* variable changes (CAMERA_RESTART bumps
+#                          camera_restart). Kiln itself scans only at boot.
+# variables.cfg is writable by user klipper: it is parsed and checked,
+# never sourced.
 #####################################################################
 
-# Bump when this file changes: the plugin's CAMERA_STATUS compares it
-# with the installed copy and asks for install.sh again
-CAM_HOOK_VERSION=2
+# Bump when this file changes: CAMERA_STATUS compares it with root's
+# copy (Kiln runs update.sh after a git update, so they should match)
+CAM_HOOK_VERSION=3
 
 CAM_CONF=/data/ad5x/camera.conf
 CAM_BEGIN="# KILN_Camera settings, from CAMERA_ON and CAMERA_OFF (the hook rewrites them)"
 CAM_END="# KILN_Camera end"
-CAM_SHIM=/run/kiln-camera-bin
 CAM_VARS=/home/klipper/printer_data/config/variables.cfg
-CAM_HOOK=/data/ad5x/camera-hook.sh
+CAM_HOOK=/data/ad5x/plugins-root/camera/camera-hook.sh
 CAM_WATCH_PID=/run/ad5x-camera-watch.pid
 CAM_SERVICE=/etc/init.d/S64ad5x-camera
 
@@ -85,33 +77,8 @@ cam_write() {
 	return 0
 }
 
-# cam_shim: true when Kiln has no stat and the python3 one is in place
-cam_shim() {
-	command -v stat >/dev/null 2>&1 && return 1
-	[ -x $CAM_SHIM/stat ] && return 0
-	mkdir -p $CAM_SHIM
-	cat > $CAM_SHIM/stat <<'CAM_EOF'
-#!/usr/bin/python3
-# KILN_Camera: what S64ad5x-camera's load_conf calls, stat -c %u|%A FILE
-import os, stat, sys
-a = sys.argv[1:]
-if len(a) != 3 or a[0] != "-c" or a[1] not in ("%u", "%A"):
-    sys.exit("stat: only -c %u|%A FILE")
-st = os.stat(a[2])
-print(st.st_uid if a[1] == "%u" else stat.filemode(st.st_mode))
-CAM_EOF
-	chmod 755 $CAM_SHIM $CAM_SHIM/stat
-}
-
 cam_restart() {
-	cam_shim
-	PATH=$CAM_SHIM:$PATH $CAM_SERVICE restart 2>&1 | logger -t ad5x-camera
-}
-
-# cam_custom: camera.conf sets something other than Kiln's defaults
-cam_custom() {
-	grep -v -e '^#' -e '^[[:space:]]*$' $CAM_CONF 2>/dev/null |
-		grep -qvx -e CAMERA=on -e RESOLUTION=1280x720 -e FPS=15
+	$CAM_SERVICE restart 2>&1 | logger -t ad5x-camera
 }
 
 cam_watch() {
@@ -127,29 +94,31 @@ cam_watch() {
 	done
 }
 
-if [ "$1" = watch ]; then
+cam_running() {
+	[ -f $CAM_WATCH_PID ] && kill -0 "$(cat $CAM_WATCH_PID)" 2>/dev/null
+}
+
+case "$1" in
+watch)
 	cam_watch
-	exit 0
-fi
-
-# Sourced at boot (or run by install.sh): S64ad5x-camera has already
-# started the cameras from camera.conf, so restart only if it changed,
-# or, the first time this boot, if Kiln couldn't read it (no stat) and
-# it isn't all defaults. In the background: the camera service waits
-# for Moonraker.
-if { [ -f $CAM_WATCH_PID ] && kill -0 "$(cat $CAM_WATCH_PID)" 2>/dev/null; }; then
-	cam_first=0
-else
-	cam_first=1
-fi
-if cam_write; then
-	logger -t ad5x-camera "settings changed, restarting cameras"
-	cam_restart &
-elif [ $cam_first = 1 ] && ! command -v stat >/dev/null 2>&1 && cam_custom; then
-	logger -t ad5x-camera "Kiln can't read camera.conf (no stat), restarting cameras"
-	cam_restart &
-fi
-
-if [ $cam_first = 1 ]; then
-	start-stop-daemon -S -b -m -p $CAM_WATCH_PID -x /bin/sh -- $CAM_HOOK watch
-fi
+	;;
+stop)
+	start-stop-daemon -K -q -p $CAM_WATCH_PID 2>/dev/null
+	rm -f $CAM_WATCH_PID
+	;;
+start)
+	# S64ad5x-camera has already started the cameras from camera.conf:
+	# restart them only if our block changed
+	if cam_write; then
+		logger -t ad5x-camera "settings changed, restarting cameras"
+		cam_restart
+	fi
+	cam_running ||
+		start-stop-daemon -S -b -m -p $CAM_WATCH_PID -x /bin/sh -- $CAM_HOOK watch
+	;;
+*)
+	echo "usage: $0 start|stop|watch"
+	exit 1
+	;;
+esac
+exit 0

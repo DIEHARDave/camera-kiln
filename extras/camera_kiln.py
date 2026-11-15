@@ -1,11 +1,12 @@
-# KILN_Camera: state of the root hook (install.sh) that CAMERA_ON /
-# CAMERA_OFF / CAMERA_RESTART (plugin.cfg) rely on, CAMERA_STATUS, and a
-# console warning when the hook is missing, outdated or not running.
+# camera-kiln: state of the root part (root/, Kiln OS plugin API 1.6)
+# that CAMERA_ON / CAMERA_OFF / CAMERA_RESTART (plugin.cfg) rely on,
+# CAMERA_STATUS, and a console warning when it is missing, outdated or
+# its watcher isn't running.
 #
 # Klipper runs as user klipper: this module only reads files. The
 # cameras are started by Kiln's S64ad5x-camera (root) from
-# /data/ad5x/camera.conf; the hook, sourced by S65ad5x-screen through
-# /data/ad5x/screen.conf, writes the settings there.
+# /data/ad5x/camera.conf; root/camera-hook.sh, run as root from root's
+# copy by the boot script S50camera, writes the settings there.
 #
 # Copyright (C) 2026  DIEHARDave
 #
@@ -14,12 +15,23 @@ import logging
 import os
 import re
 
-HOOK = "/data/ad5x/camera-hook.sh"
-CONF = "/data/ad5x/screen.conf"
+HOOK = "/data/ad5x/plugins-root/camera/camera-hook.sh"
+BOOT = "/data/ad5x/plugins-root/init.d/S50camera"
+OLD_HOOK = "/data/ad5x/camera-hook.sh"
 V4L = "/sys/class/video4linux"
 VERSION_RE = re.compile(r"^CAM_HOOK_VERSION=(\d+)", re.M)
 CHECK_INTERVAL = 30.
-INSTALL = "sh /data/ad5x/plugins/camera/install.sh"
+ENABLE = "ENABLE_PLUGIN NAME=camera ROOT=1"
+# Kiln runs boot scripts after S99ad5x-booted plus 15 s, a minute or two
+# after Klipper is ready: no watcher before that is not a problem yet
+BOOT_GRACE = 300.
+
+def uptime():
+    try:
+        with open("/proc/uptime") as f:
+            return float(f.read().split()[0])
+    except (OSError, ValueError, IndexError):
+        return BOOT_GRACE + 1.
 
 def hook_version(path):
     """CAM_HOOK_VERSION of a hook file; None if unreadable, 0 if absent."""
@@ -91,20 +103,19 @@ class KilnCamera:
         problems = []
         installed = hook_version(HOOK)
         wanted = hook_version(self.plugin_hook) or 0
-        try:
-            with open(CONF) as f:
-                sourced = (". " + HOOK) in f.read().splitlines()
-        except OSError:
-            sourced = False
-        if installed is None or not sourced:
-            problems.append("camera hook not installed: run as root: "
-                            + INSTALL)
+        if installed is None or not os.path.exists(BOOT):
+            problems.append("camera root part not installed: run "
+                            "DISABLE_PLUGIN NAME=camera, then " + ENABLE)
         elif installed < wanted:
-            problems.append("camera hook outdated (v%d, plugin has v%d):"
-                            " run as root: %s" % (installed, wanted, INSTALL))
-        elif not watcher_running(processes()):
-            problems.append("camera watcher not running: run as root:"
-                            " sh " + HOOK)
+            problems.append("camera root part outdated (v%d, plugin has v%d):"
+                            " run %s" % (installed, wanted, ENABLE))
+        elif (not watcher_running(processes())
+              and uptime() > BOOT_GRACE):
+            problems.append("camera watcher not running: reboot, or run "
+                            + ENABLE)
+        if os.path.exists(OLD_HOOK):
+            problems.append("old camera hook %s still there: run %s"
+                            % (OLD_HOOK, ENABLE))
         self.problems = problems
         return problems
     def _ready(self):
@@ -128,8 +139,8 @@ class KilnCamera:
         streams = stream_count(procs)
         installed = hook_version(HOOK)
         lines = [
-            "Hook: %s" % ("v%d" % installed if installed is not None
-                          else "not installed"),
+            "Root part: %s" % ("v%d" % installed if installed is not None
+                               else "not installed"),
             "Watcher: %s" % ("running" if watcher_running(procs)
                              else "not running"),
             "Settings: %s, %s at %s fps" % (
