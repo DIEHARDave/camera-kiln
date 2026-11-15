@@ -142,5 +142,26 @@ class KilnCamera:
         lines += ["!! " + p for p in self.problems]
         gcmd.respond_info("\n".join(lines))
 
+def adopt_legacy_section(config, old):
+    """Options from a section of the name before the rename (Kiln OS 1.0
+    keeps kiln_ names for itself), so a user's own [kiln_camera] in local.cfg
+    still applies instead of stopping Klipper with an unknown section."""
+    if not config.has_section(old):
+        return
+    fc = config.fileconfig
+    new = config.get_name()
+    legacy = config.getsection(old)
+    for opt in fc.options(old):
+        fc.set(new, opt, fc.get(old, opt))
+        legacy.get(opt)  # marks the old option as used
+    msg = "[%s] is now [%s]: rename the section in your config" % (old, new)
+    logging.warning(msg)
+    try:
+        config.get_printer().lookup_object('configfile').runtime_warning(msg)
+    except Exception:
+        pass
+
+
 def load_config(config):
+    adopt_legacy_section(config, 'kiln_camera')
     return KilnCamera(config)

@@ -63,9 +63,21 @@ console shows a `KILN_Camera:` warning with the command that fixes it.
 
 ## Updates
 
-Fluidd > Settings > Software Updates lists `kiln-camera`. After an
+Fluidd > Settings > Software Updates lists `camera-kiln`. After an
 update, `RESTART` Klipper. If `CAMERA_STATUS` then says the hook is
 outdated, run `install.sh` again as root.
+
+## Renamed for Kiln OS 1.0
+
+Since v0.1.0-rc1, Kiln OS keeps names that start with `kiln_` or
+`ad5x_` for itself and refuses plugins that use them. This plugin's
+Klipper section and status object are now `camera_kiln` (was `kiln_camera`),
+and its Software Updates entry is `camera-kiln` (was `kiln-camera`).
+
+A `[kiln_camera]` section of your own in `local.cfg` still works: its
+options are used for `[camera_kiln]`, with a warning in Fluidd/Mainsail to
+rename it. Macros or dashboards that read `printer.kiln_camera` need
+`printer.camera_kiln`.
 
 ## How it works
 
