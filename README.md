@@ -74,10 +74,14 @@ Since v0.1.0-rc1, Kiln OS keeps names that start with `kiln_` or
 Klipper section and status object are now `camera_kiln` (was `kiln_camera`),
 and its Software Updates entry is `camera-kiln` (was `kiln-camera`).
 
-A `[kiln_camera]` section of your own in `local.cfg` still works: its
-options are used for `[camera_kiln]`, with a warning in Fluidd/Mainsail to
-rename it. Macros or dashboards that read `printer.kiln_camera` need
-`printer.camera_kiln`.
+Nothing to do by hand: at the first start after the update, the plugin
+renames `[kiln_camera]` in your config files (the `.cfg` files in the
+config folder; a `.before-rename` copy of each changed file is kept),
+uses the old settings for that start, and shows a red ⚠️🚨 line in the
+console and a warning in Fluidd/Mainsail. Reboot the printer (or
+`RESTART` Klipper) when you see it. If a file can't be changed, the
+message says to rename the section by hand. Macros or dashboards that
+read `printer.kiln_camera` need `printer.camera_kiln`.
 
 ## How it works
 
