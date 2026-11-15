@@ -1,4 +1,4 @@
-# KILN_Camera
+# camera-kiln
 
 > **Parts:** the printers, boards, readers and other gear that go with this project are listed at [projects.die-hard.net/gear](https://projects.die-hard.net/gear) (Amazon affiliate links).
 
@@ -46,7 +46,7 @@ default password is `root`):
 
 ```sh
 cd /data/ad5x/plugins
-su klipper -s /bin/sh -c 'git clone https://github.com/DIEHARDave/KILN_Camera.git camera'
+su klipper -s /bin/sh -c 'git clone https://github.com/DIEHARDave/camera-kiln.git camera'
 sh /data/ad5x/plugins/camera/install.sh
 ```
 
@@ -68,6 +68,10 @@ update, `RESTART` Klipper. If `CAMERA_STATUS` then says the hook is
 outdated, run `install.sh` again as root.
 
 ## Renamed for Kiln OS 1.0
+
+This repository was `KILN_Camera` until 2026-11-15; old links and clones keep
+working (GitHub redirects them), and Moonraker switches an installed
+copy to the new address by itself at its next update check.
 
 Since v0.1.0-rc1, Kiln OS keeps names that start with `kiln_` or
 `ad5x_` for itself and refuses plugins that use them. This plugin's
