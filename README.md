@@ -5,9 +5,9 @@
 A [Kiln OS](https://github.com/djvalic/kiln-os) plugin for the Flashforge
 AD5X that adds zMod's camera macros and camera hotplug:
 
-> **Needs Kiln OS 1.0 (plugin API 1.6).** Version 2.0 uses Kiln's own
-> root scripts and boot hooks for plugins. On Kiln v0.0.x, stay on the
-> `main` branch (1.x, the `screen.conf` hook).
+> **Needs Kiln OS 1.0 or later (plugin API 1.6).** Version 2.0 uses
+> Kiln's own root scripts and boot hooks for plugins. On Kiln v0.0.x,
+> use the `kiln-v0` branch (1.x, the `screen.conf` hook).
 > Coming from 1.x? See "Moving from 1.x" below.
 
 ```
@@ -41,7 +41,7 @@ password is `root`):
 
 ```sh
 cd /data/ad5x/plugins
-su klipper -s /bin/sh -c 'git clone -b kiln-v1 https://github.com/DIEHARDave/camera-kiln.git camera'
+su klipper -s /bin/sh -c 'git clone https://github.com/DIEHARDave/camera-kiln.git camera'
 ```
 
 Then in the console (Fluidd, HelixScreen or a macro):
@@ -62,6 +62,10 @@ the command that fixes it.
 Fluidd > Settings > Software Updates lists `camera-kiln`. After an
 update, `RESTART` Klipper: when `root/` changed, Kiln runs
 `root/update.sh` by itself (you agreed to that with `ROOT=1`).
+
+On the `kiln-v1` branch from the Kiln 1.0 test builds? Switch the clone
+to `main`, or Software Updates marks it invalid:
+`su klipper -s /bin/sh -c 'git -C /data/ad5x/plugins/camera checkout main'`.
 
 ## Moving from 1.x
 
